@@ -333,7 +333,7 @@ C1 -> 2 * 2 + 1 = 5
 | Build           | Cargo                   |
 | Container       | Docker / Docker Compose |
 | Parallel Search | Rayon                   |
-| Target Platform | x86_64 / Jetson         |
+| Target Platform | arch_64 / Jetson         |
 
 ---
 
@@ -349,7 +349,6 @@ C1 -> 2 * 2 + 1 = 5
 再跑大
 再剪枝
 ```
+## 📜 Changelog
 
----
-
-## 📄 License
+项目更新记录见：[CHANGELOG.rst](./CHANGELOG.rst)
