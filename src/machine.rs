@@ -3,13 +3,64 @@
 //! `Machine` 不负责搜索，也不负责生成规则表
 //! 它只负责：给定一张转移表，从空白纸带开始一步一步运行
 
-use std::collections::HashMap;
-
-use crate::model::{Direction, RuleKey, State, Symbol, Transition};
+use crate::model::{Direction, State, Symbol, Transition};
 use crate::tape::Tape;
 
-/// @brief 状态转移表
-pub type TransitionTable = HashMap<RuleKey, Transition>;
+/// @brief 数组形式的状态转移表。
+///
+/// 规则索引编码：
+/// index = state_id * symbol_count + symbol。
+#[derive(Clone, Debug)]
+pub struct TransitionTable {
+    symbol_count: u8,
+    transitions: Vec<Transition>,
+}
+
+impl TransitionTable {
+    /// @brief 创建一张数组状态转移表。
+    pub fn new(symbol_count: u8, transitions: Vec<Transition>) -> Self {
+        Self {
+            symbol_count,
+            transitions,
+        }
+    }
+
+    /// @brief 按当前状态和符号查找转移规则。
+    pub fn get(&self, state: State, symbol: Symbol) -> Option<Transition> {
+        let state_id = match state {
+            State::Normal(id) => id,
+            State::Halt => return None,
+        };
+
+        let index = state_id as usize * self.symbol_count as usize + symbol as usize;
+        self.transitions.get(index).copied()
+    }
+
+    /// @brief 按规则槽位顺序遍历转移表。
+    pub fn iter(&self) -> impl Iterator<Item = (State, Symbol, Transition)> + '_ {
+        self.transitions
+            .iter()
+            .copied()
+            .enumerate()
+            .map(move |(index, transition)| {
+                let symbol_count = self.symbol_count as usize;
+                let state_id = index / symbol_count;
+                let symbol = index % symbol_count;
+
+                (State::Normal(state_id as u8), symbol as Symbol, transition)
+            })
+    }
+
+    /// @brief 获取规则槽位数量。
+    pub fn len(&self) -> usize {
+        self.transitions.len()
+    }
+
+    /// @brief 判断转移表是否为空。
+    pub fn is_empty(&self) -> bool {
+        self.transitions.is_empty()
+    }
+}
 
 /// @brief 单台机器的运行状态
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
@@ -62,10 +113,9 @@ impl Machine {
         }
 
         let symbol = self.tape.read(self.head);
-        let key = (self.state, symbol);
 
-        let transition = match self.table.get(&key) {
-            Some(transition) => *transition,
+        let transition = match self.table.get(self.state, symbol) {
+            Some(transition) => transition,
             None => return RunStatus::MissingTransition,
         };
 
@@ -126,5 +176,47 @@ impl Machine {
 
     pub fn table(&self) -> &TransitionTable {
         &self.table
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TransitionTable;
+    use crate::model::{Direction, State, Transition};
+
+    #[test]
+    fn transition_table_indexes_by_state_and_symbol() {
+        let transitions = vec![
+            Transition {
+                write: 0,
+                direction: Direction::Left,
+                next_state: State::Normal(0),
+            },
+            Transition {
+                write: 1,
+                direction: Direction::Right,
+                next_state: State::Normal(1),
+            },
+            Transition {
+                write: 1,
+                direction: Direction::Left,
+                next_state: State::Halt,
+            },
+            Transition {
+                write: 0,
+                direction: Direction::Right,
+                next_state: State::Normal(0),
+            },
+        ];
+        let table = TransitionTable::new(2, transitions);
+
+        assert_eq!(table.get(State::Normal(0), 0).unwrap().write, 0);
+        assert_eq!(table.get(State::Normal(0), 1).unwrap().write, 1);
+        assert_eq!(
+            table.get(State::Normal(1), 0).unwrap().next_state,
+            State::Halt
+        );
+        assert_eq!(table.get(State::Normal(1), 1).unwrap().write, 0);
+        assert_eq!(table.get(State::Halt, 0), None);
     }
 }

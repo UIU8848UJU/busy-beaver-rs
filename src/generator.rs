@@ -4,7 +4,7 @@
 //! 当前采用回溯 + 回调的方式：生成一张转移表，就立刻交给搜索器处理。
 
 use crate::machine::TransitionTable;
-use crate::model::{Direction, RuleKey, State, Symbol, Transition};
+use crate::model::{Direction, State, Transition};
 
 /// @brief 图灵机候选规则表生成器。
 #[derive(Clone, Debug)]
@@ -30,28 +30,17 @@ impl MachineGenerator {
     where
         F: FnMut(TransitionTable),
     {
-        let keys = self.generate_rule_keys();
+        let slot_count = self.rule_slot_count();
         let candidates = self.generate_transition_candidates();
 
-        let mut current = TransitionTable::new();
+        let mut current = Vec::with_capacity(slot_count);
 
-        self.backtrack_for_each(0, &keys, &candidates, &mut current, &mut callback);
+        self.backtrack_for_each(0, slot_count, &candidates, &mut current, &mut callback);
     }
 
-    /// @brief 生成所有规则入口。
-    ///
-    /// 对于 BB(3)，规则入口是：
-    /// A0, A1, B0, B1, C0, C1。
-    fn generate_rule_keys(&self) -> Vec<RuleKey> {
-        let mut keys = Vec::new();
-
-        for state_id in 0..self.state_count {
-            for symbol in 0..self.symbol_count {
-                keys.push((State::Normal(state_id), symbol));
-            }
-        }
-
-        keys
+    /// @brief 计算规则槽位数量。
+    fn rule_slot_count(&self) -> usize {
+        self.state_count as usize * self.symbol_count as usize
     }
 
     /// @brief 生成单条规则所有可能的候选转移。
@@ -96,23 +85,22 @@ impl MachineGenerator {
     fn backtrack_for_each<F>(
         &self,
         index: usize,
-        keys: &[RuleKey],
+        slot_count: usize,
         candidates: &[Transition],
-        current: &mut TransitionTable,
+        current: &mut Vec<Transition>,
         callback: &mut F,
     ) where
         F: FnMut(TransitionTable),
     {
-        if index == keys.len() {
-            callback(current.clone());
+        if index == slot_count {
+            callback(TransitionTable::new(self.symbol_count, current.clone()));
             return;
         }
-        let key = keys[index];
 
         for transition in candidates {
-            current.insert(key, *transition);
-            self.backtrack_for_each(index + 1, keys, candidates, current, callback);
-            current.remove(&key);
+            current.push(*transition);
+            self.backtrack_for_each(index + 1, slot_count, candidates, current, callback);
+            current.pop();
         }
     }
 }

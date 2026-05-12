@@ -36,8 +36,3 @@ pub struct Transition {
     pub direction: Direction,
     pub next_state: State,
 }
-
-/// @brief 转移表的键。
-///
-/// `(State, Symbol)` 表示：当前状态 + 当前读取到的符号。
-pub type RuleKey = (State, Symbol);
